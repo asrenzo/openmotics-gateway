@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>OpenMotics Gateway</title>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8"/>
+    <meta name="description" content="OpenMotics Cloud"/>
+    <meta name="keywords" content="openmotics,domotics,domotica,cloud"/>
+    <meta name="copyright" content="&copy; 2012-2013 - OpenMotics BVBA - All rights reserved"/>
+    <link rel="shortcut icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" type="text/css" href="/static/css/bootstrap.css" title="Variant Multi" media="all"/>
+    <link rel="stylesheet" type="text/css" href="/static/css/bootstrap-responsive.css" title="Variant Multi" media="all"/>
+    <link rel="stylesheet" type="text/css" href="/static/css/bootstrap.override.css" title="Variant Multi" media="all"/>
+    <script type="text/javascript" src="/static/js/jquery-2.0.0.min.js"></script>
+    <script type="text/javascript" src="/static/js/bootstrap.js"></script>
+    <script type="text/javascript">
+        $(document).ready(function() {
+            $("#password").keypress(function(e) {
+                if (e.which == 13) {
+                    $("#create").trigger("click");
+                }
+            });
+
+            $("#create").click(function(e) {
+                if ($("#cpassword").val() === $("#password").val()) {
+                    $.ajax({
+                        url: '/create_user',
+                        type: 'POST',
+                        dataType: 'json',
+                        data: {
+                            username: $("#username").val(),
+                            password: $("#password").val()
+                        },
+                        success: function(result) {
+                            show_message("Success", "New account created. You can now login.");
+                            location.href = '/';
+                        },
+                        error: function() {
+                            show_message("Error", "Creating a new account failed. Make sure all leds on the gateway are on before creating an account.");
+                        }
+                    });
+                } else {
+                    show_message("Error", "Both entered passwords are not equal.");
+                }
+            });
+        });
+
+        function show_message(title, body) {
+            $("#message-title").text(title);
+            $("#message-body").text(body);
+            $("#modal-message").modal({
+                keyboard: false,
+                backdrop: 'static'
+            });
+        }
+    </script>
+    <style>
+        body {
+            padding-top: 60px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .enabled {
+            color: green;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar navbar-fixed-top navbar-inverse">
+        <div class="navbar-inner">
+            <div class="container">
+                <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </a>
+                <img src="/static/img/logo.png"
+                     style="width: 30px; float: left; padding-top: 5px; padding-right: 5px;"/>
+                <a class="brand" href="https://cloud.openmotics.com">OpenMotics Gateway</a>
+
+                <div class="nav-collapse">
+                    <ul class="nav">
+                        <li class="divider-vertical"></li>
+                        <li><a href="http://www.openmotics.com/?page_id=21">Forum</a></li>
+                        <li><a href="http://www.openmotics.com/?post_type=product">Shop</a></li>
+                        <li class="dropdown">
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                                OpenMotics
+                                <b class="caret"></b>
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a href="http://www.openmotics.com/">Wo are we</a></li>
+                                <li><a href="https://www.openmotics.com/?page_id=183">Why OpenMotics</a></li>
+                                <li><a href="http://www.openmotics.com/?page_id=71">Contact us</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="span12">
+                <h3>Create account</h3>
+
+                <ol>
+                    <li>Hold the OpenMotics Gateway button for 10 seconds, make sure that all leds on the gateway light up.</li>
+                    <li>When all lights are on, you are able to create a new account.</li>
+                </ol>
+
+                <br/>
+                <form class="form-horizontal">
+                    <div class="control-group">
+                        <label class="control-label" for="username">Username</label>
+
+                        <div class="controls">
+                            <input type="text" id="username" placeholder="Username"/>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label" for="password">Password</label>
+
+                        <div class="controls">
+                            <input type="password" id="password" placeholder="Password"/>
+                        </div>
+                    </div>
+                    <div class="control-group">
+                        <label class="control-label" for="cpassword">Confirm password</label>
+
+                        <div class="controls">
+                            <input type="password" id="cpassword" placeholder="Password"/>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <input class="btn btn-primary" type='button' id='create' value='Create account'/>
+                        <a class="btn" href='/'>Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <footer class="footer" xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <p class="pull-right" style="text-align: right;">
+            </p>
+
+            <p id="copyright" property="dc:rights">
+                <span property="dc:dateCopyrighted">&copy; 2012 - 2013</span> -
+                <span property="dc:publisher"><a href="http://www.openmotics.com">OpenMotics bvba</a></span> -
+                All rights reserved
+            </p>
+            <!--<p>Reach us via <a href="http://www.twitter.com/openmotics/" id="twitter">Twitter</a> or <a href="http://www.facebook.com/openmotics/" id="facebook">Facebook</a></p>-->
+            <p>Icons from <a href="http://glyphicons.com">Glyphicons Free</a>, licensed under <a href="http://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.</p>
+        </footer>
+    </div>
+
+    <div class="modal hide fade" id="modal-message">
+        <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            <h3><span id="message-title"></span></h3>
+        </div>
+        <div class="modal-body">
+            <p id="message-body"></p>
+        </div>
+        <div class="modal-footer">
+            <a href="#" onclick="$('#modal-message').modal('hide');" class="btn btn-primary">OK</a>
+        </div>
+    </div>
+</body>
+</html>

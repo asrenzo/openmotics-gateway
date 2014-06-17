@@ -1,0 +1,94 @@
+.dropdown-menu > .no-a-hover > a:hover
+{
+    text-decoration: none;
+    color: #333;
+    background-color: white;
+}
+
+.footer {
+  margin-top: 15px;
+  padding: 15px 0 15px;
+  border-top: 1px solid #e5e5e5;
+}
+.footer p {
+  margin-bottom: 0;
+  color: #555;
+}
+
+.wide-popover * .popover {
+    width: 500px !important;
+}
+
+.icon-selector:hover {
+    background-color: #bbbbbb;
+}
+
+.autoselect > select {
+    width: auto !important;
+}
+
+.table-striped2 > tbody > tr:nth-child(6n) > td,
+.table-striped2 > tbody > tr:nth-child(6n-1) > td,
+.table-striped2 > tbody > tr:nth-child(6n-2) > td,
+.table-striped2 > thead > tr > th {
+    background-color: #f9f9f9;
+}
+
+.table-striped2 > tbody > tr:nth-child(6n) > td,
+.table-striped2 > tbody > tr:nth-child(3n) > td {
+    border-top: 0px !important;
+}
+
+.nowrap {
+    white-space: nowrap
+}
+
+.tagit-new > .ui-autocomplete-input {
+    width: 70px !important;
+}
+.tagit.ui-widget {
+    border: 0px !important;
+    margin: 0px !important;
+}
+.tagit-choice.ui-widget-content {
+    padding: 0px 20px 0px 7px !important;
+    height: 20px !important;
+    margin-top: 0px !important;
+}
+.tagit-new {
+    margin: 0px !important;
+    padding: 1px 5px !important;
+}
+
+.btn-gray {
+  color: #ffffff;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.25);
+  background-color: #363636;
+  background-image: -moz-linear-gradient(top, #cccccc, #aaaaaa);
+  background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#cccccc), to(#aaaaaa));
+  background-image: -webkit-linear-gradient(top, #cccccc, #aaaaaa);
+  background-image: -o-linear-gradient(top, #cccccc, #aaaaaa);
+  background-image: linear-gradient(to bottom, #cccccc, #aaaaaa);
+  background-repeat: repeat-x;
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#ff444444', endColorstr='#ff222222', GradientType=0);
+  border-color: #aaaaaa #aaaaaa #888888;
+  border-color: rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.1) rgba(0, 0, 0, 0.25);
+  *background-color: #aaaaaa;
+  /* Darken IE7 buttons by default so they stand out more given they won't have borders */
+
+  filter: progid:DXImageTransform.Microsoft.gradient(enabled = false);
+}
+.btn-gray:hover,
+.btn-gray:focus,
+.btn-gray:active,
+.btn-gray.active,
+.btn-gray.disabled,
+.btn-gray[disabled] {
+  color: #ffffff;
+  background-color: #aaaaaa;
+  *background-color: #777777;
+}
+.btn-gray:active,
+.btn-gray.active {
+  background-color: #aaaaaa \9;
+}

@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>OpenMotics Gateway</title>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8"/>
+    <meta name="description" content="OpenMotics Cloud"/>
+    <meta name="keywords" content="openmotics,domotics,domotica,cloud"/>
+    <meta name="copyright" content="&copy; 2012-2013 - OpenMotics BVBA - All rights reserved"/>
+    <link rel="shortcut icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" type="text/css" href="/static/css/bootstrap.css" title="Variant Multi" media="all"/>
+    <link rel="stylesheet" type="text/css" href="/static/css/bootstrap-responsive.css" title="Variant Multi" media="all"/>
+    <link rel="stylesheet" type="text/css" href="/static/css/bootstrap.override.css" title="Variant Multi" media="all"/>
+    <script type="text/javascript" src="/static/js/jquery-2.0.0.min.js"></script>
+    <script type="text/javascript" src="/static/js/bootstrap.js"></script>
+    <script type="text/javascript" src="/static/js/om_config.js"></script>
+    <script type="text/javascript">
+        var messageActive = false;
+
+        // Configuration
+        var configs_loaded = 0;
+        var configs = { "outputs" : {}, "thermostats" : {}, "group_actions" : {} };
+
+        // Outputs
+        var output_states = {};
+        var output_ignore = {};
+        var output_last_tr_id = 0;
+        var output_last_td = 2;
+        function refresh_outputs() {
+            load_data("outputs");
+        }
+        function toggle_output_touch(event, output_nr) {
+            event.preventDefault();
+            toggle_output(output_nr);
+        }
+        function toggle_output(output_nr) {
+            output_states[output_nr] = !output_states[output_nr];
+            output_ignore[output_nr] = true;
+            set_output(output_nr);
+        }
+        function set_output(output_nr) {
+            var on = output_states[output_nr];
+            var data = {  token: "None", id: output_nr, is_on: on == 1, fe_time: gettimestamp() };
+
+            if ($('#dimmer_' + output_nr).length != 0) {
+                var dimmer = parseInt($("#dimmer_" + output_nr).val(), 10);
+                if (dimmer >= 0 && dimmer <= 100) {
+                    if (on == 1) {
+                        data['dimmer'] = dimmer;
+                    }
+                } else {
+                    show_message("Error", "The dimmer value should be between 0 and 100.");
+                    return;
+                }
+            }
+
+            display_output(output_nr);
+
+            set_loading("#loading_output_" + output_nr, true);
+            $.ajax({
+                url: "/set_output",
+                type: 'POST',
+                dataType: 'json',
+                data: data
+            })
+            .done(refresh_outputs)
+            .fail(function(xhr) {
+                if (xhr.status === 401) {
+                    location.reload(true);
+                }
+                show_message("Error", "Failed to set output " + output_nr + ".");
+            })
+            .always(function() {
+                set_loading("#loading_output_" + output_nr, false);
+            });
+        }
+        function display_output(output_nr) {
+            var on = output_states[output_nr];
+
+            if (on == 1) {
+                $("#output_" + output_nr + "_on").text("On").addClass('active btn-success');
+                $("#output_" + output_nr + "_off").html("&nbsp;|||&nbsp;").removeClass('active btn-gray');
+            } else {
+                $("#output_" + output_nr + "_on").html("&nbsp;|||&nbsp;").removeClass('active btn-success');
+                $("#output_" + output_nr + "_off").text("Off").addClass('active btn-gray');
+            }
+        }
+        function show_outputs(data) {
+            $.each(data['status'], function(index, output) {
+                var output_nr = output['id'];
+
+                if (output_nr in configs['outputs']) {
+                    var output_name = configs['outputs'][output_nr];
+
+                    if ($("#output_block_" + output_nr).length === 1) {
+                        if (!output_ignore[output_nr]) {
+                            output_states[output_nr] = (output['status'] !== 0);
+                            display_output(output_nr);
+                            if (output['type'] == 'D') {
+                                var input = $("#dimmer_" + output_nr);
+                                if (!input.is(":focus")) {
+                                    input.val(output['dimmer']);
+                                }
+                            }
+                        }
+                        output_ignore[output_nr] = false;
+                    } else {
+                        output_ignore[output_nr] = false;
+
+                        // Configure the table
+                        var table = $("#outputs_table");
+                        if (output_last_td === 2) {
+                            output_last_tr_id++;
+                            table.append('<tr id="output_tr_' + output_last_tr_id + '"></tr>');
+                            output_last_td = 0;
+                        }
+                        var tr = $("#output_tr_" + output_last_tr_id);
+                        tr.append('<td id="output_td_' + output_last_tr_id + '_' + output_last_td + '"></td>');
+                        var td = $("#output_td_" + output_last_tr_id + '_' + output_last_td);
+                        if (output_last_td === 0) {
+                            td.attr('colspan', '2');
+                        } else {
+                            $("#output_td_" + output_last_tr_id + '_0').attr('colspan', '1');
+                        }
+                        output_last_td++;
+
+                        var div = "";
+                        div += '<div class="output" id="output_block_' + output_nr + '">';
+                        div += '    <span class="output_name">' + output_name + '</span>';
+                        div += '    <div class="btn-group">';
+                        if (output['status'] == 0) {
+                            output_states[output['output_nr']] = false;
+                            div += '        <button id="output_' + output_nr + '_on" ontouchend="toggle_output_touch(event, ' + output_nr + ');" onclick="toggle_output(' + output_nr + ');" class="gray btn btn-small">&nbsp;|||&nbsp;</button>';
+                            div += '        <button id="output_' + output_nr + '_off" ontouchend="toggle_output_touch(event, ' + output_nr + ');" onclick="toggle_output(' + output_nr + ');" class="gray btn btn-small btn-gray active">Off</button>'
+                        } else {
+                            output_states[output['output_nr']] = true;
+                            div += '        <button id="output_' + output_nr + '_on" ontouchend="toggle_output_touch(event, ' + output_nr + ');" onclick="toggle_output(' + output_nr + ');" class="gray btn btn-small btn-success active">On</button>';
+                            div += '        <button id="output_' + output_nr + '_off" ontouchend="toggle_output_touch(event, ' + output_nr + ');" onclick="toggle_output(' + output_nr + ');" class="gray btn btn-small">&nbsp;|||&nbsp;</button>'
+                        }
+                        div += '    </div>';
+                        if (output['type'] == 'D') {
+                            div += '    <div class="input-prepend input-append spaced" style="margin-bottom: 0;">';
+                            div += '        <span class="add-on" style="line-height: 16px; height: 16px;" >Dimmer</span>';
+                            div += '        <input type="text" pattern="\\d*" id="dimmer_' + output_nr + '" value="' + output['dimmer'] + '" size="3" style="width: 25px; height: 16px;" />';
+                            div += '        <button onclick="set_output(' + output_nr + ');" class="btn btn-small">Save</button>';
+                            div += '    </div>';
+                        }
+                        div += '    <img id="loading_output_' + output_nr + '" src="/static/img/transparent.png" class="spaced" style="width: 25px; height: 25px;"/>';
+                        div += '</div>';
+                        td.append(div);
+                    }
+                }
+            });
+            set_loading("#outputs_loading", false);
+        }
+
+        // Group actions
+        var ga_last_tr_id = 0;
+        var ga_last_td = 2;
+        function show_group_actions() {
+            $.each(configs['group_actions'], function(id, name) {
+                if (name != "") {
+                    // Configure the table
+                    var table = $("#ga_table");
+                    if (ga_last_td === 2) {
+                        ga_last_tr_id++;
+                        table.append('<tr id="ga_tr_' + ga_last_tr_id + '"></tr>');
+                        ga_last_td = 0;
+                    }
+                    var tr = $("#ga_tr_" + ga_last_tr_id);
+                    tr.append('<td id="ga_td_' + ga_last_tr_id + '_' + ga_last_td + '"></td>');
+                    var td = $("#ga_td_" + ga_last_tr_id + '_' + ga_last_td);
+                    if (ga_last_td === 0) {
+                        td.attr('colspan', '2');
+                    } else {
+                        $("#ga_td_" + ga_last_tr_id + '_0').attr('colspan', '1');
+                    }
+                    ga_last_td++;
+
+                    var div = "";
+                    div += "<div class='group_action'>";
+                    div += "    <span class='output_name'>" + name + "</span>";
+                    div += "    <a href='#' class='btn btn-small' id='ga_" + id + "'>Execute</a>";
+                    div += '    <img id="loading_ga_' + id + '" src="/static/img/transparent.png" class="spaced" style="width: 25px; height: 25px;"/>';
+                    div += "</div>";
+                    td.append(div);
+
+                    $("#ga_" + id).on("click", {id: id}, function(e) {
+                        set_loading("#loading_ga_" + e.data.id, true);
+                        $.ajax({
+                            url: "/do_group_action",
+                            type: 'POST',
+                            dataType: 'json',
+                            data: { token : "None", group_action_id : e.data.id, fe_time: gettimestamp() }
+                        })
+                        .fail(function (xhr) {
+                            if (xhr.status === 401) {
+                                location.reload(true);
+                            }
+                            show_message("Error", "Failed to execute group action " + e.data.id + ".");
+                        })
+                        .always(function () {
+                            set_loading("#loading_ga_" + e.data.id, false);
+                        });
+                    });
+                }
+            });
+            set_loading("#ga_loading", false);
+        }
+
+        // Thermostats
+        var th_last_tr_id = 0;
+        var th_last_td = 2;
+        var thermostats_loaded = false;
+        var tbs_states = {}
+        function refresh_thermostats() {
+            load_data("thermostats");
+        }
+        function set_thermostat_mode(on, automatic, setpoint) {
+            set_loading("#thermostats_loading", true);
+            $.ajax({
+                url: "/set_thermostat_mode",
+                type: 'POST',
+                dataType: 'json',
+                data: { token : "None", thermostat_on : on, automatic : automatic, setpoint : setpoint, fe_time: gettimestamp() }
+            })
+            .done(refresh_thermostats)
+            .fail(function(xhr) {
+                if (xhr.status === 401) {
+                    location.reload(true);
+                }
+                show_message("Error", "Failed to set thermostat mode.");
+            })
+            .always(function() {
+                set_loading("#thermostats_loading", false);
+            });
+        }
+        function on_csetp_change(thermostat) {
+            set_loading("#loading_th_" + thermostat, true);
+            var temperature = $("#csetp_" + thermostat).val();
+
+            $.ajax({
+                url: "/set_current_setpoint",
+                type: 'POST',
+                dataType: 'json',
+                data: { token : "None", thermostat : thermostat, temperature : temperature, fe_time : gettimestamp() }
+            })
+            .done(refresh_thermostats)
+            .fail(function(xhr) {
+                if (xhr.status === 401) {
+                    location.reload(true);
+                }
+                show_message("Error", "Failed to set thermostat setpoint.");
+            })
+            .always(function() {
+                set_loading("#loading_th_" + thermostat, false);
+            });
+        }
+        function toggle_therm_touch(event, therm_id) {
+            event.preventDefault();
+            toggle_therm(therm_id);
+        }
+        function toggle_therm(therm_id) {
+            tbs_states[therm_id] = !tbs_states[therm_id];
+            $("#csetp_" + therm_id).val(tbs_states[therm_id] ? 21 : 19);
+            on_csetp_change(therm_id);
+        }
+        function display_tbs(therm_id) {
+            var on = tbs_states[therm_id];
+
+            if (on == 1) {
+                $("#therm_" + therm_id + "_on").text("On").addClass('active btn-success');
+                $("#therm_" + therm_id + "_off").html("&nbsp;|||&nbsp;").removeClass('active btn-gray');
+            } else {
+                $("#therm_" + therm_id + "_on").html("&nbsp;|||&nbsp;").removeClass('active btn-success');
+                $("#therm_" + therm_id + "_off").text("Off").addClass('active btn-gray');
+            }
+        }
+        function show_thermostats(data) {
+            if (!thermostats_loaded) {
+                var div = '';
+                div += '<div id="thermostats_global">';
+                div += '    <div class="pull-left" style="background-image: url(/static/img/glyphicons.png); background-position: -146px -290px; padding-left: 20px; margin-top: 10px; height: 23px; margin-bottom: 25px;">&nbsp;</div>';
+                div += '    <div class="pull-left" style="padding-left: 10px; padding-top: 3px; margin-top: 9px;">';
+                div += '        <span id="thermostat_onoff" style="font-weight: bold; font-size: 28px;">Off</span>';
+                div += '    </div>';
+                div += '    <div class="btn-group pull-left" style="padding-left: 30px; margin-top: 8px;">';
+                div += '        <button id="button_auto" class="btn btn-default""><span style="background-image: url(/static/img/glyphicons.png); padding-left: 20px; background-size: 232px; background-position: -167px -118px;">&nbsp;</span>';
+                div += '            Auto';
+                div += '        </button>';
+                div += '        <button id="button_away" class="btn btn-default""><span style="background-image: url(/static/img/glyphicons.png); padding-left: 20px; background-size: 232px; background-position: -47px -360px;">&nbsp;</span>';
+                div += '            Away';
+                div += '        </button>';
+                div += '        <button id="button_vacation" class="btn btn-default"><span style="background-image: url(/static/img/glyphicons.png); padding-left: 20px; background-size: 232px; background-position: -0px -599px;">&nbsp;</span>';
+                div += '            Vacation';
+                div += '        </button>';
+                div += '        <button id="button_party" class="btn btn-default"><span style="background-image: url(/static/img/glyphicons.png); padding-left: 20px; background-size: 232px; background-position: -167px -22px;">&nbsp;</span>';
+                div += '            Party';
+                div += '        </button>';
+                div += '    </div>';
+                div += '    <div class="pull-left" style="padding-left: 20px; padding-top: 3px; margin-top: 11px;">';
+                div += '            <span style="font-weight: bold; font-size: 15px;">outside: <span id="thermostat_outside_temp">20.0</span> °C</span>';
+                div += '    </div>';
+                div += '    <img id="thermostats_loading" src="/static/img/transparent.png" class="spaced" style="width: 25px; height: 25px; margin-top: 10px;"/>';
+                div += '    <div>&nbsp;</div>';
+                div += '</div>';
+                div += '<table class="table table-striped table-condensed" id="th_table"></table>';
+                $("#thermostats").append(div);
+
+                // Bind click handlers on mode buttons.
+                $.each([["#button_auto", "true", data['setpoint']], ["#button_away", "false", 3],
+                        ["#button_vacation", "false", 4], ["#button_party", "false", 5]],
+                    function (index, value) {
+                        $(value[0]).on("click", { auto: value[1], setpoint: value [2] }, function (e) {
+                            set_thermostat_mode("true", e.data.auto, e.data.setpoint);
+                        });
+                    }
+                );
+
+                thermostats_loaded = true;
+            }
+
+            var onoff = $("#thermostat_onoff");
+            onoff.text(data['thermostats_on'] ? 'on' : 'off');
+            onoff.css('color', data['thermostats_on'] ? '#51A351' : '#BD362F');
+            $("#thermostat_outside_temp").text(round_fixed(data['status'][0]['outside'], 1));
+
+
+            // Set enabled mode
+            $("#button_auto").removeClass("active");
+            $("#button_away").removeClass("active");
+            $("#button_vacation").removeClass("active");
+            $("#button_party").removeClass("active");
+            if (data['automatic'] == true) {
+                $("#button_auto").addClass("active");
+            } else if (data['setpoint'] == 3) { // AWAY
+                $("#button_away").addClass("active");
+            } else if (data['setpoint'] == 4) { // VACATION
+                $("#button_vacation").addClass("active");
+            } else if (data['setpoint'] == 5) { // PARTY
+                $("#button_party").addClass("active");
+            }
+
+            // Add all thermostas
+            $.each(data['status'], function (index, thermostat) {
+                var id = thermostat['id'];
+                var thermostat_name = configs['thermostats'][id];
+
+                if ($("#thermostat_block_" + id).length === 1) {
+                    var onoff = $("#th_onoff_" + id);
+                    onoff.text(thermostat['output0'] ? 'On' : 'Off');
+                    onoff.css('color', thermostat['output0'] ? '#51A351' : '#BD362F');
+                    var input = $("#csetp_" + id);
+                    if (!input.is(":focus")) {
+                        input.val(round_fixed(thermostat['csetp'], 1));
+                    }
+                    $("#act_" + id).val(round_fixed(thermostat['act'], 1) + ' &deg;C');
+                    if (thermostat['sensor_nr'] >= 240) {
+                        tbs_states[id] = thermostat['csetp'] >= 20;
+                        display_tbs(id);
+                    }
+                } else {
+                    // Configure the table
+                    var table = $("#th_table");
+                    if (th_last_td === 2) {
+                        th_last_tr_id++;
+                        table.append('<tr id="th_tr_' + th_last_tr_id + '"></tr>');
+                        th_last_td = 0;
+                    }
+                    var tr = $("#th_tr_" + th_last_tr_id);
+                    tr.append('<td id="th_td_' + th_last_tr_id + '_' + th_last_td + '"></td>');
+                    var td = $("#th_td_" + th_last_tr_id + '_' + th_last_td);
+                    if (th_last_td === 0) {
+                        td.attr('colspan', '2');
+                    } else {
+                        $("#th_td_" + th_last_tr_id + '_0').attr('colspan', '1');
+                    }
+                    th_last_td++;
+
+                    var div = "";
+                    div += '<div class="output" id="thermostat_block_' + id + '">';
+                    div += '    <span class="output_name">' + thermostat_name + '</span>';
+                    if (thermostat['sensor_nr'] >= 240) {
+                        div += '    <div class="btn-group" style="margin-left: 9px;">';
+                        if (thermostat['output0'] === 0) {
+                            div += '        <button id="therm_' + id + '_on" ontouchend="toggle_therm_touch(event, ' + id + ');" onclick="toggle_therm(' + id + ');" class="gray btn btn-small">&nbsp;|||&nbsp;</button>';
+                            div += '        <button id="therm_' + id + '_off" ontouchend="toggle_therm_touch(event, ' + id + ');" onclick="toggle_therm(' + id + ');" class="gray btn btn-small btn-gray active">Off</button>'
+                        } else {
+                            div += '        <button id="therm_' + id + '_on" ontouchend="toggle_therm_touch(event, ' + id + ');" onclick="toggle_therm(' + id + ');" class="gray btn btn-small btn-success active">On</button>';
+                            div += '        <button id="therm_' + id + '_off" ontouchend="toggle_therm_touch(event, ' + id + ');" onclick="toggle_therm(' + id + ');" class="gray btn btn-small">&nbsp;|||&nbsp;</button>'
+                        }
+                        div += '    </div>';
+                        div += '    <input type="hidden" id="csetp_' + id + '" value="' + round_fixed(thermostat['csetp'], 1) + '" />';
+                        tbs_states[id] = thermostat['output0'] > 0;
+                    } else {
+                        div += '    <div class="input-prepend input-append spaced" style="margin-bottom: 0;">';
+                        if (thermostat['output0'] > 0) {
+                            div += '        <span id="th_onoff_' + id + '" class="add-on" style="line-height: 16px; height: 16px; font-weight: bold; color: #51A351;">On</span>';
+                        } else {
+                            div += '        <span id="th_onoff_' + id + '" class="add-on" style="line-height: 16px; height: 16px; font-weight: bold; color: #BD362F;">Off</span>';
+                        }
+                        div += '        <input type="text" pattern="[\\d|\\.]+" id="csetp_' + id + '" value="' + round_fixed(thermostat['csetp'], 1) + '" size="3" style="width: 30px; height: 16px; margin: 0;" />';
+                        div += '        <span class="add-on" style="line-height: 16px; height: 16px;" id="act_' + id + '">' + round_fixed(thermostat['act'], 1) + ' &deg;C</span>';
+                        div += '    </div>';
+                    }
+                    div += '    <img id="loading_th_' + id + '" src="/static/img/transparent.png" class="spaced" style="width: 25px; height: 25px;"/>';
+                    div += '</div>';
+                    td.append(div);
+
+                    var csetp_field = $("#csetp_" + id);
+                    csetp_field.on('focusout', { id : id }, function(e) {
+                        on_csetp_change(e.data.id);
+                    });
+                    csetp_field.on('keypress', { id : id }, function(e) {
+                        if (e.which == 13) {
+                            on_csetp_change(e.data.id);
+                        }
+                    });
+                }
+            });
+            set_loading("#therm_loading", false);
+        }
+
+        // General
+        function load_data(name) {
+            var url, callback;
+
+            if (name == "outputs") {
+                url = "/get_output_status?token=None";
+                callback = show_outputs;
+            } else if (name == "thermostats") {
+                url = "/get_thermostat_status?token=None";
+                callback = show_thermostats;
+            }
+            url += "&fe_time=" + gettimestamp();
+
+            $.ajax({
+                url: url,
+                type: 'GET',
+                dataType: 'json'
+            })
+            .done(callback)
+            .fail(function(xhr) {
+                if (xhr.status === 401) {
+                    location.reload(true);
+                }
+                show_message("Error", "Fetching data for " + name + " failed.");
+            });
+
+            $("#"+name).addClass("loaded");
+        }
+
+        function create_error(msg) {
+            return function(xhr) {
+                if (xhr.status === 401) {
+                    location.reload(true);
+                }
+                show_message("Error", msg);
+            };
+        }
+
+        function config_loaded(data, key, filter) {
+            $.each(data['config'], function(i, element) {
+                if (filter == undefined || filter(element)) {
+                    var id = element['id'];
+                    var name = element['name'];
+                    configs[key][id] = name;
+                }
+            });
+        }
+
+        function create_config_div(container, plugin_name) {
+            var description = null;
+            var config = null;
+
+            function create_div() {
+                if (description != null && config != null) {
+                    create_config(container, description);
+                    container.append('<a href="#" id="save-config-' + plugin_name + '" class="btn btn-small">Save</a>');
+                    set_config(container, description, config);
+
+                    $("#save-config-" + plugin_name).click(function() {
+                        var config = get_config(container, description);
+                        
+                        $.ajax({
+                            url: '/plugins/' + plugin_name + '/set_config',
+                            type: 'POST',
+                            dataType: 'json',
+                            data: { token : "None", config : JSON.stringify(config) }
+                        })
+                        .done(function(data) {
+                            show_message("Info", "Successfully set the config for plugin " + plugin_name + ".");
+                        })
+                        .fail(function(xhr) {
+                            show_message("Error", "Failed to set config for plugin " + plugin_name + ".");
+                        })
+                        .always(function() {
+                            container.hide();
+                        });
+                    });
+                }
+            }
+
+            $.ajax({
+                url: '/plugins/' + plugin_name + '/get_config_description?token=None',
+                type: 'GET',
+                dataType: 'json'
+            })
+            .done(function(data){
+                description = data;
+                create_div();
+            })
+            .fail(function(xhr) {
+                show_message("Error", "Fetching configuration for " + plugin_name + " failed.");
+            });
+
+            $.ajax({
+                url: '/plugins/' + plugin_name + '/get_config?token=None',
+                type: 'GET',
+                dataType: 'json'
+            })
+            .done(function(data){
+                config = data;
+                create_div();
+            })
+            .fail(function(xhr) {
+                show_message("Error", "Fetching configuration for " + plugin_name + " failed.");
+            });
+        }
+
+        function plugins_loaded(data) {
+            $.each(data['plugins'], function(i, plugin) {
+                var is_webui = false;
+                var is_configurable = false;
+
+                $.each(plugin['interfaces'], function (j, interface) {
+                    if (interface[0] == "webui") {
+                        is_webui = true;
+                    } else if (interface[0] == "config") {
+                        is_configurable = true;
+                    }
+                });
+
+                row = '<tr><td><div>';
+                row += '<span class="output_name">' + plugin['name'] + ' (v ' + plugin['version'] + ')</span>';
+                if (is_configurable) {
+                    row += '<a href="#" class="btn btn-small" id="btn-config-' + plugin['name'] + '">Configure</a>';
+                }
+                row += '<a href="/remove_plugin?token=None&name=' + plugin['name'] + '" class="btn btn-small">Remove</a>';
+                row += "</div></td></tr>";
+                $("#plugin_table").append(row);
+
+                if (is_configurable) {
+                    $("#plugins").append('<div style="display: none;" id="div-config-' + plugin['name'] + '"><h4>Configure plugin ' + plugin['name'] + '</h4></div>');
+                    
+                    create_config_div($("#div-config-" + plugin['name']), plugin['name']);
+                    
+                    $("#btn-config-" + plugin['name']).click(function (e) {
+                        $("#div-config-" + plugin['name']).show();
+                    });
+                }
+
+                if (is_webui) {
+                    var content = $("#content");
+                    content.append('<div class="section" style="display: none; height: 100%;" id="' + plugin['name'] + '"><iframe style="height:100%;width:100%" width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="/plugins/' + plugin['name'] + '/html_index?token=None"></iframe></div>');
+
+                    var tabs = $(".tabs");
+                    tabs.append('<li class="tab"><a id="' + plugin['name'] + '_button" href="#">' + plugin['name'] + '</a></li>');
+
+                    $("#" + plugin['name'] + "_button").on("click", {name: plugin['name']}, function(e) {
+                        var name = e.data.name;
+
+                        $(".section").hide();
+                        $("#" + name).show();
+
+                        $(".tab").removeClass('active');
+                        $("#" + name + "_button").parent().addClass('active');
+                    });
+                }
+            });
+        }
+
+        function init() {
+            // Load the output configuration first, then load the others.
+            // This makes the first screen appear faster for the user.
+            $.ajax({
+                url: '/get_output_configurations',
+                type: 'POST',
+                data: { 'token' : "None", 'fields' : JSON.stringify([ 'name', 'type' ]) },
+                dataType: 'json'
+            })
+            .done(function(data) {
+                config_loaded(data, "outputs", function(element) { return element['type'] == 255 });
+                refresh_outputs();
+                window.setInterval(refresh_outputs, 5000);
+            })
+            .fail(create_error("Fetching output configuration data"))
+            .complete(function() {
+                $.ajax({
+                    url: '/get_thermostat_configurations',
+                    type: 'POST',
+                    data: { 'token' : "None", 'fields' : JSON.stringify([ 'name' ]) },
+                    dataType: 'json'
+                })
+                .done(function(data) {
+                    config_loaded(data, "thermostats");
+                    refresh_thermostats();
+                    window.setInterval(refresh_thermostats, 5000);
+                })
+                .fail(create_error("Fetching thermostat configuration data"));
+
+                $.ajax({
+                    url: '/get_group_action_configurations',
+                    type: 'POST',
+                    data: { 'token' : "None", 'fields' : JSON.stringify([ 'name' ]) },
+                    dataType: 'json'
+                })
+                .done(function(data) {
+                    config_loaded(data, "group_actions");
+                    show_group_actions();
+                })
+                .fail(create_error("Fetching group action configuration data"));
+
+                $.ajax({
+                    url: '/get_plugins',
+                    type: 'POST',
+                    data: { 'token' : "None" },
+                    dataType: 'json'
+                })
+                .done(plugins_loaded)
+                .fail(create_error("Fetching plugins failed"));
+            });
+        }
+
+        $(document).ready(function() {
+            // Initialize the tabs.
+            $.each(["outputs", "group_actions", "thermostats", "plugins"], function(index, value) {
+                $("#"+value+"_button").on("click", {name: value}, function(e) {
+                    var name = e.data.name;
+
+                    $(".section").hide();
+                    $("#" + name).show();
+
+                    $(".tab").removeClass('active');
+                    $("#" + name + "_button").parent().addClass('active');
+                });
+            });
+
+            // Initialize the message modal
+            $('#modal-message').on('hidden', function () {
+                messageActive = false;
+            });
+
+            // Load the data
+            init();
+        });
+
+        function show_message(title, body) {
+            if (!messageActive) {
+                $("#message-title").text(title);
+                $("#message-body").text(body);
+                $("#modal-message").modal({
+                    keyboard: false,
+                    backdrop: 'static'
+                });
+            }
+        }
+        function build_string(value, times) {
+            "use strict";
+            var i;
+            var returnvalue = '';
+            for (i = 0; i < times; i++) {
+                returnvalue += value.toString();
+            }
+            return returnvalue;
+        }
+        function round_fixed(number, decimals) {
+            "use strict";
+            if (decimals === undefined) {
+                decimals = 2;
+            }
+
+            var parts = [];
+            if (isNaN(number)) {
+                parts = ["0"];
+            } else {
+                var rounder = Math.pow(10, decimals);
+                var rounded = Math.round(number * rounder) / rounder;
+                var rounded_string = rounded.toString();
+                parts = rounded_string.split('.');
+            }
+
+            if (decimals <= 0) {
+                return parts[0];
+            }
+
+            if (parts.length === 1) {
+                parts.push(build_string('0', decimals));
+            }
+            while (parts[1].length < decimals) {
+                parts[1] = parts[1] + "0";
+            }
+            return parts[0] + "." + parts[1];
+        }
+
+        function gettimestamp() {
+            return new Date().getTime();
+        }
+
+        function set_loading(selector, loading) {
+            if (loading) {
+                $(selector).attr('src', '/static/img/loading_round.gif');
+            } else {
+                $(selector).attr('src', '/static/img/transparent.png');
+            }
+        }
+    </script>
+    <style>
+        body {
+            padding-top: 40px;
+        }
+        .output_name {
+            display: inline-block;
+            width: 150px;
+        }
+        .spaced {
+            margin-left: 10px;
+        }
+        .gray {
+            color: #AAAAAA;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar navbar-fixed-top navbar-inverse">
+        <div class="navbar-inner">
+            <div class="container">
+                <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </a>
+                <img src="/static/img/logo.png"
+                     style="width: 30px; float: left; padding-top: 5px; padding-right: 5px;"/>
+                <a class="brand" href="https://cloud.openmotics.com">OpenMotics Gateway</a>
+
+                <div class="nav-collapse">
+                    <ul class="nav">
+                        <li class="divider-vertical"></li>
+                        <li><a href="http://www.openmotics.com/?page_id=21">Forum</a></li>
+                        <li><a href="http://www.openmotics.com/?post_type=product">Shop</a></li>
+                        <li class="dropdown">
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown">
+                                OpenMotics
+                                <b class="caret"></b>
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a href="http://www.openmotics.com/">Wo are we</a></li>
+                                <li><a href="https://www.openmotics.com/?page_id=183">Why OpenMotics</a></li>
+                                <li><a href="http://www.openmotics.com/?page_id=71">Contact us</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="btn-group pull-right">
+                    <a class="btn" href="/logout?token=None"><i class="icon-user"></i> Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="span12" id="content">
+                <ul class="tabs nav nav-tabs"
+                    style="float: left; width: 100%; padding-top: 5px; background-color: #fff;">
+                    <li class="tab active"><a id="outputs_button" href="#">Lights</a></li>
+                    <li class="tab"><a id="group_actions_button" href="#">Group actions</a></li>
+                    <li class="tab"><a id="thermostats_button" href="#">Thermostats</a></li>
+                    <li class="tab"><a id="plugins_button" href="#">Plugins</a></li>
+                </ul>
+
+                <div class="section" id="outputs">
+                    <img id="outputs_loading" src="/static/img/loading_round.gif" class="spaced" style="width: 25px; height: 25px;"/>
+                    <table class="table table-striped table-condensed" id="outputs_table"></table>
+                </div>
+
+                <div class="section" style="display: none;" id="group_actions">
+                    <img id="ga_loading" src="/static/img/loading_round.gif" class="spaced" style="width: 25px; height: 25px;"/>
+                    <table class="table table-striped table-condensed" id="ga_table"></table>
+                </div>
+
+                <div class="section" style="display: none;" id="thermostats">
+                    <img id="therm_loading" src="/static/img/loading_round.gif" class="spaced" style="width: 25px; height: 25px;"/>
+                </div>
+
+                <div class="section" style="display: none;" id="plugins">
+                    <h3>Manage your plugins</h3>
+                    <p>
+                        Below is a list of the installed plugins.
+                    </p>
+
+                    <table class="table table-striped table-condensed" id="plugin_table">
+                        <tbody></tbody>
+                    </table>
+
+
+                    <form action="/install_plugin" method="post" class="form-horizontal" enctype="multipart/form-data">
+                        <h4>Install a new plugin.</h4>
+                        <input id="token" name="token" type="hidden" value="None" />
+                        <div class="control-group ">
+                            <label for="package_data" class="control-label">Plugin package file</label>
+                            <div class="controls">
+                                <input id="package_data" name="package_data" type="file">
+                                <p class="help-block">Tgz file containing the python files for the plugin package.</p>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <label class="control-label" for="md5">MD5 sum</label>
+                            <div class="controls">
+                                <input type="text" id="md5" name="md5" placeholder="MD5" />
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <input type="submit" value="Install" class="btn btn-primary">
+                        </div>
+                    </form>
+                </div>
+
+            </div>
+        </div>
+        <footer class="footer" xmlns:dc="http://purl.org/dc/elements/1.1/">
+            <p class="pull-right" style="text-align: right;">
+            </p>
+
+            <p id="copyright" property="dc:rights">
+                <span property="dc:dateCopyrighted">&copy; 2012 - 2013</span> -
+                <span property="dc:publisher"><a href="http://www.openmotics.com">OpenMotics bvba</a></span> -
+                All rights reserved
+            </p>
+            <!--<p>Reach us via <a href="http://www.twitter.com/openmotics/" id="twitter">Twitter</a> or <a href="http://www.facebook.com/openmotics/" id="facebook">Facebook</a></p>-->
+            <p>Icons from <a href="http://glyphicons.com">Glyphicons Free</a>, licensed under <a href="http://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.</p>
+        </footer>
+    </div>
+
+    <div class="modal hide fade" id="modal-message">
+        <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+            <h3><span id="message-title"></span></h3>
+        </div>
+        <div class="modal-body">
+            <p id="message-body"></p>
+        </div>
+        <div class="modal-footer">
+            <a href="#" onclick="$('#modal-message').modal('hide');" class="btn btn-primary">OK</a>
+        </div>
+    </div>
+</body>
+</html>
